@@ -3,6 +3,7 @@ import argparse
 import torch
 import numpy as np
 from datautil import prepare_mnli_data_loader
+from models.residual_encoder import ResEncoder
 
 def main(arguments):
     random.seed(arguments.seed)
@@ -11,13 +12,17 @@ def main(arguments):
     torch.cuda.manual_seed(arguments.seed)
     torch.cuda.set_device(arguments.gpu_id)
 
-    iters = prepare_mnli_data_loader(arguments, reversed=True)  # TODO false/true
+    iters = prepare_mnli_data_loader(arguments, reverse=False)  # TODO find out why reversed
     multinli_train_iter, multinli_dev_match_iter, multinli_dev_umatch_iter, multinli_test_match_iter, multinli_test_umatch_iter = iters
 
+    print("initiate NLI model...")
+    multinli_model = ResEncoder(arguments)
+
     for batch_i, batch in enumerate(multinli_train_iter):
-        s1, s1_l = batch.premise
-        s2, s2_l = batch.hypothesis
-        pass
+        s1, s1_len = batch.premise
+        s2, s2_len = batch.hypothesis
+        multinli_model(s1, s1_len, s2, s2_len)
+        break
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='NLI training')
