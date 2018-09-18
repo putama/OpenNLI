@@ -7,6 +7,9 @@ from datautil import build_nli_iterator
 from models.residual_encoder import ResEncoder
 from models.trainer import build_optimizer, adjust_learning_rate
 from tqdm import tqdm
+import datetime
+import os
+
 
 def main(arguments):
     random.seed(arguments.seed)
@@ -29,11 +32,16 @@ def main(arguments):
     optimizer = build_optimizer(multinli_model, arguments)
     multinli_model.train()
 
+    # save model preparation
+    save_dir = datetime.now().strftime("checkpoints/experiment_D%d-%m_H%H-%M")
+    os.mkdir(os.path.join(arguments.data_root, save_dir))
+
     lr = arguments.learning_rate
     for epoch in range(arguments.epoch):
         decay_i = epoch // 2
         lr = lr / (2 ** decay_i)
         adjust_learning_rate(optimizer, lr)
+        print("learning rate is decayed to:", lr)
 
         multinli_train_iter.init_epoch()
         trainbar = tqdm(multinli_train_iter)
@@ -53,11 +61,17 @@ def main(arguments):
 
             if (batch_i+1) % arguments.eval_step == 0:
                 avg_acc, avg_loss = eval(multinli_model, multinli_dev_match_iter)
-                print("training validation. step-%d. average acc: %.3f. average loss: %.3f" %
+                print("training validation. step-%d. "
+                      "average acc: %.3f. average loss: %.3f" %
                       (batch_i+1, avg_acc, avg_loss))
                 multinli_model.train()
+                # save current model to ckpt file
+                save_file = "%s_model_epoch_%d_step_%d_acc_%.3f.pt" % \
+                            (arguments.nli_dataset, (epoch+1),
+                             (batch_i+1), avg_acc)
 
-            trainbar.set_description("Training current acc: %.3f, loss: %.3f" % (acc, loss.item()))
+            trainbar.set_description("Training current acc: %.3f, "
+                                     "loss: %.3f" % (acc, loss.item()))
 
 
 def eval(nli_model: nn.Module, data_iter):
@@ -108,13 +122,13 @@ if __name__ == '__main__':
     parser.add_argument("--embedding_pt_file", type=str, default="extracted_glove.pt")
     # learning options
     parser.add_argument("--optim", type=str, default="adam")
-    parser.add_argument("--batch_size", type=int, default=5)
+    parser.add_argument("--batch_size", type=int, default=32)
     parser.add_argument("--batch_size_eval", type=int, default=200)
     parser.add_argument("--learning_rate", type=float, default=0.0004)
     parser.add_argument("--n_layers", type=int, default=1)
     parser.add_argument("--mlp_dim", type=int, default=800)
     parser.add_argument("--epoch", type=int, default=3)
-    parser.add_argument("--eval_step", type=int, default=4000)
+    parser.add_argument("--eval_step", type=int, default=6000)
     parser.add_argument("--use_pretrained_emb", type=int, default=1)
     # data options
     parser.add_argument("--min_freq", type=int, default=10)
