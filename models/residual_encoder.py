@@ -1,9 +1,6 @@
-import numpy as np
 import torch
 import torch.nn as nn
-from torch.autograd import Variable
-from torch.nn.utils.rnn import pack_padded_sequence, pad_packed_sequence
-from torch import Tensor
+from models.nli_model import NLI_Model
 
 
 def to_cuda(object: torch.Tensor):
@@ -13,29 +10,11 @@ def to_cuda(object: torch.Tensor):
         return object
 
 
-def rnn_autosort_forward(rnn: nn.RNNBase, input, input_len):
-    input_len_sorted, idx_sort = input_len.sort(descending=True)
-    _, idx_unsort = idx_sort.sort()
-    idx_sort = to_cuda(idx_sort)
-    input_reordered = input.index_select(1, Variable(idx_sort))
-
-    # Handling padding in Recurrent Networks
-    input_reordered_packed = pack_padded_sequence(input_reordered, input_len_sorted)
-    output, _ = rnn(input_reordered_packed)  # batch_max_len x batch_size x hidden_size
-    output, _ = pad_packed_sequence(output)
-
-    # Un-sort by length
-    idx_unsort = to_cuda(idx_unsort)
-    output_ori_order = output.index_select(1, Variable(idx_unsort))
-
-    return output_ori_order
-
-
-class ResEncoder(nn.Module):
+class ResEncoder(NLI_Model):
     def __init__(self, arguments, h_size=[600, 600, 600], v_size=10, d=300,
                  mlp_d=800, dropout_r=0.1, max_l=60, k=3, n_layers=1):
         super(ResEncoder, self).__init__()
-        self.Embd = nn.Embedding(arguments.vocab_size, d)
+        self.embeddings = nn.Embedding(arguments.vocab_size, d)
 
         self.lstm = nn.LSTM(input_size=d, hidden_size=h_size[0],
                             num_layers=1, bidirectional=True)
@@ -55,14 +34,20 @@ class ResEncoder(nn.Module):
         self.sm = nn.Linear(mlp_d, 3)
 
         if n_layers == 1:
-            self.classifier = nn.Sequential(*[self.mlp_1, nn.ReLU(), nn.Dropout(dropout_r),
+            self.classifier = nn.Sequential(*[self.mlp_1, nn.ReLU(),
+                                              nn.Dropout(dropout_r),
                                               self.sm])
         elif n_layers == 2:
-            self.classifier = nn.Sequential(*[self.mlp_1, nn.ReLU(), nn.Dropout(dropout_r),
-                                              self.mlp_2, nn.ReLU(), nn.Dropout(dropout_r),
+            self.classifier = nn.Sequential(*[self.mlp_1, nn.ReLU(),
+                                              nn.Dropout(dropout_r),
+                                              self.mlp_2, nn.ReLU(),
+                                              nn.Dropout(dropout_r),
                                               self.sm])
         else:
             print("Error num layers")
+
+        # set loss criterion
+        self.criterion = nn.CrossEntropyLoss()
 
     def count_params(self):
         total_c = 0
@@ -86,11 +71,11 @@ class ResEncoder(nn.Module):
             if s2.size(0) > self.max_l:
                 s2 = s2[:self.max_l, :]
 
-        p_s1 = self.Embd(s1)
-        p_s2 = self.Embd(s2)
+        p_s1 = self.embeddings(s1)
+        p_s2 = self.embeddings(s2)
 
-        s1_layer1_out = rnn_autosort_forward(self.lstm, p_s1, l1)
-        s2_layer1_out = rnn_autosort_forward(self.lstm, p_s2, l2)
+        s1_layer1_out = self.rnn_autosort_forward(self.lstm, p_s1, l1)
+        s2_layer1_out = self.rnn_autosort_forward(self.lstm, p_s2, l2)
 
         # Length truncate
         len1 = s1_layer1_out.size(0)
@@ -102,14 +87,14 @@ class ResEncoder(nn.Module):
         s1_layer2_in = torch.cat([p_s1, s1_layer1_out], dim=2)
         s2_layer2_in = torch.cat([p_s2, s2_layer1_out], dim=2)
 
-        s1_layer2_out = rnn_autosort_forward(self.lstm_1, s1_layer2_in, l1)
-        s2_layer2_out = rnn_autosort_forward(self.lstm_1, s2_layer2_in, l2)
+        s1_layer2_out = self.rnn_autosort_forward(self.lstm_1, s1_layer2_in, l1)
+        s2_layer2_out = self.rnn_autosort_forward(self.lstm_1, s2_layer2_in, l2)
 
         s1_layer3_in = torch.cat([p_s1, s1_layer1_out + s1_layer2_out], dim=2)
         s2_layer3_in = torch.cat([p_s2, s2_layer1_out + s2_layer2_out], dim=2)
 
-        s1_layer3_out = rnn_autosort_forward(self.lstm_2, s1_layer3_in, l1)
-        s2_layer3_out = rnn_autosort_forward(self.lstm_2, s2_layer3_in, l2)
+        s1_layer3_out = self.rnn_autosort_forward(self.lstm_2, s1_layer3_in, l1)
+        s2_layer3_out = self.rnn_autosort_forward(self.lstm_2, s2_layer3_in, l2)
 
         s1_layer3_maxout = self.max_along_time(s1_layer3_out, l1)
         s2_layer3_maxout = self.max_along_time(s2_layer3_out, l2)
@@ -149,3 +134,11 @@ class ResEncoder(nn.Module):
                 b_seq_max_list.append(seq_i_max)
 
             return torch.stack(b_seq_max_list)
+
+    def compute_loss(self, logit, target):
+        """
+        :param logit: matrix of logit vectors of size [batchsize x n_class]
+        :param target: tensor of true labels [batchsize]
+        :return: loss computed based on defined criterion
+        """
+        return self.criterion(logit, target)
