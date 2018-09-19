@@ -1,14 +1,16 @@
 from torchtext import data, datasets
-
+import torch
 
 def build_mnli_split(arguments, reverse=True):
     text_field = datasets.nli.ParsedTextField(reverse=reverse)
     label_field = data.LabelField()
     genre_field = data.LabelField()
     parse_field = datasets.nli.ShiftReduceField()
+    pairID_field = data.Field(use_vocab=False, sequential=False, dtype=torch.int)
 
     print("splitting MultiNLI datasets...")
-    splits_match = datasets.MultiNLI.splits(text_field, label_field, parse_field, genre_field,
+    splits_match = datasets.MultiNLI.splits(text_field, label_field,
+                                            parse_field, genre_field, pairID_field,
                                             root=arguments.data_root,
                                             train="multinli_1.0_train.jsonl",
                                             validation="multinli_1.0_dev_matched.jsonl",
@@ -16,7 +18,7 @@ def build_mnli_split(arguments, reverse=True):
                                                  "matched_unlabeled.jsonl")
     multinli_train, multinli_dev_match, multinli_test_match = splits_match
     splits_umatch = datasets.MultiNLI.splits(text_field, label_field, parse_field,
-                                             genre_field, root=arguments.data_root,
+                                             genre_field, pairID_field, root=arguments.data_root,
                                              train=None,
                                              validation="multinli_1.0_"
                                                         "dev_mismatched.jsonl",
@@ -39,10 +41,28 @@ def build_mnli_split(arguments, reverse=True):
     return (multinli_train, multinli_dev_match, multinli_test_match,
             multinli_dev_umatch, multinli_test_umatch)
 
-def build_nli_iterator(args, reverse=True):
+
+def build_nli_iterator(split, args, training=True):
+    """
+    :param split: Dataset
+    :param args: arguments
+    :param training: is training or not
+    :return: iterator of dataset
+    """
+
+    if training:
+        data_iters = data.Iterator.splits((split,), batch_size=(args.batch_size),
+                                          repeat=False)
+    else:
+        data_iters = data.Iterator.splits((split,), shuffle=False,
+                                          batch_size=args.batch_size,
+                                          repeat=False)
+    return data_iters[0]
+
+
+def build_nli_iterator_all(splits, args):
     if args.nli_dataset == "multinli":
-        train, dev_match, test_match, dev_umatch, test_umatch = build_mnli_split(args,
-                                                                                 reverse)
+        train, dev_match, test_match, dev_umatch, test_umatch = splits
     else:
         raise Exception("invalid NLI dataset name")
 

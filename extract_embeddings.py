@@ -43,13 +43,13 @@ def main(arguments):
 
     # all splits share the same text field
     if len(splits) > 0:
-        split:data.Dataset = splits[0]
+        split = splits[0]
         vocab = split.fields['premise'].vocab
     else:
         raise Exception()
 
     all_emb = read_and_match_embeddings(vocab, arguments)
-    save_path =  os.path.join('data', arguments.nli_dataset, 'extracted_emb.pt')
+    save_path =  os.path.join('data', arguments.nli_dataset, 'extracted_emb.pt.tar')
     torch.save(all_emb, save_path)
     print("extracted embedding is saved at", save_path)
 
@@ -66,6 +66,8 @@ if __name__ == '__main__':
     # gpu options
     parser.add_argument("--gpu_id", type=int, default=-1, help="GPU ID")
     parser.add_argument("--seed", type=int, default=1234, help="seed")
+    # data options
+    parser.add_argument("--min_freq", type=int, default=10)
     arguments = parser.parse_args()
     print(arguments)
 

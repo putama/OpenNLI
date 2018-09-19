@@ -3,48 +3,50 @@ import torch.nn as nn
 from models.nli_model import NLI_Model
 
 
-def to_cuda(object: torch.Tensor):
-    if torch.cuda.is_available():
-        return object.cuda()
-    else:
-        return object
+class ResidualEncoder(NLI_Model):
+    def __init__(self, arguments, h_size=[600, 600, 600],
+                 dropout_r=0.1, max_l=60):
+        """
+        :param arguments: main python arguments
+        :param h_size: hidden size of each layer of LSTM
+        :param dropout_r: dropout rate
+        :param max_l: maximum sequence length
+        :param k:
+        :param n_layers:
+        """
+        super(ResidualEncoder, self).__init__()
+        self.embeddings = nn.Embedding(arguments.vocab_size, arguments.embedding_dim)
 
-
-class ResEncoder(NLI_Model):
-    def __init__(self, arguments, h_size=[600, 600, 600], v_size=10, d=300,
-                 mlp_d=800, dropout_r=0.1, max_l=60, k=3, n_layers=1):
-        super(ResEncoder, self).__init__()
-        self.embeddings = nn.Embedding(arguments.vocab_size, d)
-
-        self.lstm = nn.LSTM(input_size=d, hidden_size=h_size[0],
+        self.lstm = nn.LSTM(input_size=arguments.embedding_dim, hidden_size=h_size[0],
                             num_layers=1, bidirectional=True)
 
-        self.lstm_1 = nn.LSTM(input_size=(d + h_size[0] * 2), hidden_size=h_size[1],
-                              num_layers=1, bidirectional=True)
+        self.lstm_1 = nn.LSTM(input_size=(arguments.embedding_dim + h_size[0] * 2),
+                              hidden_size=h_size[1],num_layers=1, bidirectional=True)
 
-        self.lstm_2 = nn.LSTM(input_size=(d + h_size[0] * 2), hidden_size=h_size[2],
-                              num_layers=1, bidirectional=True)
+        self.lstm_2 = nn.LSTM(input_size=(arguments.embedding_dim + h_size[0] * 2),
+                              hidden_size=h_size[2], num_layers=1, bidirectional=True)
 
         self.max_l = max_l
         self.h_size = h_size
-        self.k = k
 
-        self.mlp_1 = nn.Linear(h_size[2] * 2 * 4, mlp_d)
-        self.mlp_2 = nn.Linear(mlp_d, mlp_d)
-        self.sm = nn.Linear(mlp_d, 3)
-
-        if n_layers == 1:
-            self.classifier = nn.Sequential(*[self.mlp_1, nn.ReLU(),
+        if arguments.n_layers == 1:
+            self.classifier = nn.Sequential(*[nn.Linear(h_size[2] * 2 * 4,
+                                                        arguments.mlp_dim),
+                                              nn.ReLU(),
                                               nn.Dropout(dropout_r),
-                                              self.sm])
-        elif n_layers == 2:
-            self.classifier = nn.Sequential(*[self.mlp_1, nn.ReLU(),
+                                              nn.Linear(arguments.mlp_dim, 3)])
+        elif arguments.n_layers == 2:
+            self.classifier = nn.Sequential(*[nn.Linear(h_size[2] * 2 * 4,
+                                                        arguments.mlp_dim),
+                                              nn.ReLU(),
                                               nn.Dropout(dropout_r),
-                                              self.mlp_2, nn.ReLU(),
+                                              nn.Linear(arguments.mlp_dim,
+                                                        arguments.mlp_dim),
+                                              nn.ReLU(),
                                               nn.Dropout(dropout_r),
-                                              self.sm])
+                                              nn.Linear(arguments.mlp_dim, 3)])
         else:
-            print("Error num layers")
+            raise Exception("invalid number of MLP layers")
 
         # set loss criterion
         self.criterion = nn.CrossEntropyLoss()
@@ -56,10 +58,6 @@ class ResEncoder(NLI_Model):
                 d1, d2 = param.size()[0], param.size()[1]
                 total_c += d1 * d2
         print("Total count:", total_c)
-
-    def display(self):
-        print(self)
-        print("Model GPU device: {}".format(str(torch.cuda.current_device())))
 
 
     def forward(self, s1, l1, s2, l2):
