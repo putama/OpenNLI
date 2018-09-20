@@ -6,40 +6,39 @@ def build_mnli_split(arguments, reverse=True):
     label_field = data.LabelField()
     genre_field = data.LabelField()
     parse_field = datasets.nli.ShiftReduceField()
-    pairID_field = data.Field(use_vocab=False, sequential=False, dtype=torch.int)
+    pairID_field = data.Field(use_vocab=False, sequential=False, unk_token=None)
 
     print("splitting MultiNLI datasets...")
-    splits_match = datasets.MultiNLI.splits(text_field, label_field,
-                                            parse_field, genre_field, pairID_field,
-                                            root=arguments.data_root,
-                                            train="multinli_1.0_train.jsonl",
-                                            validation="multinli_1.0_dev_matched.jsonl",
-                                            test="multinli_0.9_test_"
-                                                 "matched_unlabeled.jsonl")
-    multinli_train, multinli_dev_match, multinli_test_match = splits_match
-    splits_umatch = datasets.MultiNLI.splits(text_field, label_field, parse_field,
-                                             genre_field, pairID_field, root=arguments.data_root,
-                                             train=None,
-                                             validation="multinli_1.0_"
-                                                        "dev_mismatched.jsonl",
-                                             test="multinli_0.9_test_"
-                                                  "mismatched_unlabeled.jsonl")
-    multinli_dev_umatch, multinli_test_umatch = splits_umatch
+    splits = datasets.MultiNLI.splits(text_field, label_field,
+                                      parse_field, genre_field,
+                                      root=arguments.data_root,
+                                      train="multinli_1.0_train.jsonl",
+                                      validation="multinli_1.0_dev_matched.jsonl",
+                                      test="multinli_1.0_dev_mismatched.jsonl")
+    train_split, dev_m_split, dev_um_split = splits
+    splits = datasets.MultiNLI.splits(text_field, label_field, parse_field, 
+                                      genre_field, pairID_field, 
+                                      root=arguments.data_root,
+                                      train=None,
+                                      validation="multinli_0.9_test_"
+                                                 "matched_unlabeled.jsonl",
+                                      test="multinli_0.9_test_"
+                                           "mismatched_unlabeled.jsonl")
+    test_m_split, test_um_split = splits
 
     print("building vocabularies from each sets...")
-    text_field.build_vocab(multinli_train, multinli_dev_match, multinli_dev_umatch,
-                           multinli_test_match, multinli_test_umatch,
+    text_field.build_vocab(train_split, dev_m_split, dev_um_split,
+                           test_m_split, test_um_split,
                            min_freq=arguments.min_freq)
-    label_field.build_vocab(multinli_train)
-    genre_field.build_vocab(multinli_train, multinli_dev_match, multinli_dev_umatch,
-                           multinli_test_match, multinli_test_umatch)
+    label_field.build_vocab(train_split)
+    genre_field.build_vocab(train_split, dev_m_split, dev_um_split,
+                            test_m_split, test_um_split)
     print("Target labels:", label_field.vocab.itos)
     print("Available genres:", genre_field.vocab.itos)
 
     arguments.vocab_size = len(text_field.vocab)
 
-    return (multinli_train, multinli_dev_match, multinli_test_match,
-            multinli_dev_umatch, multinli_test_umatch)
+    return train_split, dev_m_split, test_m_split, dev_um_split, test_um_split
 
 
 def build_nli_iterator(split, args, training=True):

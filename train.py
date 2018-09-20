@@ -43,8 +43,8 @@ def main(arguments):
     lr = arguments.learning_rate
     step_i = 0
     for epoch in range(arguments.epoch):
-        decay_i = epoch // 2
-        lr = lr / (2 ** decay_i)
+        decay_i = epoch // arguments.decay_every
+        lr = lr * (arguments.decay_rate ** decay_i)
         adjust_learning_rate(optimizer, lr)
         print("learning rate is decayed to:", lr)
 
@@ -75,9 +75,13 @@ def main(arguments):
                 save_file = "%s_model_epoch_%d_step_%d_acc_%.3f.pt.tar" % \
                             (arguments.nli_dataset, (epoch + 1),
                              (batch_i + 1), avg_acc)
+                save_path = os.path.join(arguments.checkpoint_dir,
+                                         arguments.save_dir,
+                                         save_file)
+                print("saving the model to checkpoint file", save_path)
                 torch.save({"state_dict": multinli_model.state_dict(),
                             "train_args": arguments},
-                           save_file)
+                           save_path)
 
             trainbar.set_description("Epoch-%d, current acc: %.3f, loss: %.3f" %
                                      ((epoch+1), acc, loss.item()))
@@ -97,9 +101,11 @@ if __name__ == '__main__':
     parser.add_argument("--learning_rate", type=float, default=0.0004)
     parser.add_argument("--mlp_dim", type=int, default=800)
     parser.add_argument("--embedding_dim", type=int, default=300)
-    parser.add_argument("--epoch", type=int, default=3)
+    parser.add_argument("--epoch", type=int, default=15)
     parser.add_argument("--eval_step", type=int, default=6000)
     parser.add_argument("--use_pretrained_emb", type=int, default=1)
+    parser.add_argument("--decay_every", type=int, default=5)
+    parser.add_argument("--decay_rate", type=float, default=0.5)
     # residual encoder option
     parser.add_argument("--n_layers", type=int, default=1)
     # data options

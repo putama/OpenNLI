@@ -54,8 +54,8 @@ def predict(nli_model: nn.Module, data_iter,
         s1, s1_len, s2, s2_len, target_y = to_cuda(s1, s1_len, s2, s2_len, target_y)
 
         logit = nli_model(s1, s1_len, s2, s2_len)
-        predictions = list(logit.max(dim=1)[1].numpy())
-        pairIDs = list(batch.pairID.numpy())
+        predictions = list(logit.max(dim=1)[1].cpu().numpy())
+        pairIDs = list(batch.pairID.cpu().numpy())
         for id, pred in zip(pairIDs, predictions):
             yield (id, label_field.vocab.itos[pred])
 
@@ -87,6 +87,7 @@ def main(args):
     train_args = checkpoint["train_args"]
     nli_model = ResidualEncoder(train_args)
     nli_model.load_state_dict(state_dict)
+    nli_model = to_cuda(nli_model)
 
     data_iter.init_epoch()
     label_field = data_iter.dataset.fields['label']
@@ -100,7 +101,7 @@ def main(args):
         with open(pred_file_path, 'w') as pred_file:
             pred_file.write("pairID,gold_label")
             for id, pred in predict(nli_model, data_iter, label_field=label_field):
-                pred_file.write("{},{}".format(id, pred))
+                pred_file.write("{},{}\n".format(id, pred))
 
     print("evaluation finished")
 
