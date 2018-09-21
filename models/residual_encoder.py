@@ -4,7 +4,7 @@ from models.nli_model import NLI_Model
 
 
 class ResidualEncoder(NLI_Model):
-    def __init__(self, arguments, h_size=[600, 600, 600],
+    def __init__(self, arguments, h_size=[512, 1024, 2048],
                  dropout_r=0.1, max_l=60):
         """
         :param arguments: main python arguments
@@ -21,9 +21,11 @@ class ResidualEncoder(NLI_Model):
                             num_layers=1, bidirectional=True)
 
         self.lstm_1 = nn.LSTM(input_size=(arguments.embedding_dim + h_size[0] * 2),
-                              hidden_size=h_size[1],num_layers=1, bidirectional=True)
+                              hidden_size=h_size[1], num_layers=1, bidirectional=True)
 
-        self.lstm_2 = nn.LSTM(input_size=(arguments.embedding_dim + h_size[0] * 2),
+        self.lstm_2 = nn.LSTM(input_size=(arguments.embedding_dim +
+                                          h_size[0] * 2 +
+                                          h_size[1] * 2),
                               hidden_size=h_size[2], num_layers=1, bidirectional=True)
 
         self.max_l = max_l
@@ -88,8 +90,8 @@ class ResidualEncoder(NLI_Model):
         s1_layer2_out = self.rnn_autosort_forward(self.lstm_1, s1_layer2_in, l1)
         s2_layer2_out = self.rnn_autosort_forward(self.lstm_1, s2_layer2_in, l2)
 
-        s1_layer3_in = torch.cat([p_s1, s1_layer1_out + s1_layer2_out], dim=2)
-        s2_layer3_in = torch.cat([p_s2, s2_layer1_out + s2_layer2_out], dim=2)
+        s1_layer3_in = torch.cat([p_s1, s1_layer1_out, s1_layer2_out], dim=2)
+        s2_layer3_in = torch.cat([p_s2, s2_layer1_out, s2_layer2_out], dim=2)
 
         s1_layer3_out = self.rnn_autosort_forward(self.lstm_2, s1_layer3_in, l1)
         s2_layer3_out = self.rnn_autosort_forward(self.lstm_2, s2_layer3_in, l2)
