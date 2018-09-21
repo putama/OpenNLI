@@ -4,8 +4,7 @@ from models.nli_model import NLI_Model
 
 
 class ResidualEncoder(NLI_Model):
-    def __init__(self, arguments, h_size=[600, 600, 600],
-                 dropout_r=0.1, max_l=60):
+    def __init__(self, arguments, h_size=[600, 600, 600], max_l=60):
         """
         :param arguments: main python arguments
         :param h_size: hidden size of each layer of LSTM
@@ -31,20 +30,20 @@ class ResidualEncoder(NLI_Model):
 
         if arguments.n_layers == 1:
             self.classifier = nn.Sequential(*[nn.Linear(h_size[2] * 2 * 4,
-                                                        arguments.mlp_dim),
+                                                        arguments.fc_dim),
                                               nn.ReLU(),
-                                              nn.Dropout(dropout_r),
-                                              nn.Linear(arguments.mlp_dim, 3)])
+                                              nn.Dropout(arguments.dropout_rate),
+                                              nn.Linear(arguments.fc_dim, 3)])
         elif arguments.n_layers == 2:
             self.classifier = nn.Sequential(*[nn.Linear(h_size[2] * 2 * 4,
-                                                        arguments.mlp_dim),
+                                                        arguments.fc_dim),
                                               nn.ReLU(),
-                                              nn.Dropout(dropout_r),
-                                              nn.Linear(arguments.mlp_dim,
-                                                        arguments.mlp_dim),
+                                              nn.Dropout(arguments.dropout_rate),
+                                              nn.Linear(arguments.fc_dim,
+                                                        arguments.fc_dim),
                                               nn.ReLU(),
-                                              nn.Dropout(dropout_r),
-                                              nn.Linear(arguments.mlp_dim, 3)])
+                                              nn.Dropout(arguments.dropout_rate),
+                                              nn.Linear(arguments.fc_dim, 3)])
         else:
             raise Exception("invalid number of MLP layers")
 

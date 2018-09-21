@@ -6,6 +6,8 @@ from torch.nn.utils.rnn import pack_padded_sequence, pad_packed_sequence
 from utilities import to_cuda
 
 class NLI_Model(nn.Module):
+    N_CLASS = 3
+
     def display(self):
         print(self)
         print("is GPU?: {}".format(str(next(self.parameters()).is_cuda)))

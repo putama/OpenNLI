@@ -99,7 +99,7 @@ def main(args):
                                       args.nli_dataset,
                                       args.submission_file)
         with open(pred_file_path, 'w') as pred_file:
-            pred_file.write("pairID,gold_label")
+            pred_file.write("pairID,gold_label\n")
             for id, pred in predict(nli_model, data_iter, label_field=label_field):
                 pred_file.write("{},{}\n".format(id, pred))
 

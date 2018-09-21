@@ -76,7 +76,7 @@ def main(arguments):
                             (arguments.nli_dataset, (epoch + 1),
                              (batch_i + 1), avg_acc)
                 save_path = os.path.join(arguments.checkpoint_dir,
-                                         arguments.save_dir,
+                                         save_dir,
                                          save_file)
                 print("saving the model to checkpoint file", save_path)
                 torch.save({"state_dict": multinli_model.state_dict(),
@@ -99,15 +99,20 @@ if __name__ == '__main__':
     parser.add_argument("--batch_size", type=int, default=32)
     parser.add_argument("--batch_size_eval", type=int, default=200)
     parser.add_argument("--learning_rate", type=float, default=0.0004)
-    parser.add_argument("--mlp_dim", type=int, default=800)
+    parser.add_argument("--fc_dim", type=int, default=800)
     parser.add_argument("--embedding_dim", type=int, default=300)
     parser.add_argument("--epoch", type=int, default=15)
     parser.add_argument("--eval_step", type=int, default=6000)
     parser.add_argument("--use_pretrained_emb", type=int, default=1)
     parser.add_argument("--decay_every", type=int, default=5)
     parser.add_argument("--decay_rate", type=float, default=0.5)
-    # residual encoder option
+    parser.add_argument("--dropout_rate", type=float, default=0.1)
+    # residual encoder options
     parser.add_argument("--n_layers", type=int, default=1)
+    # infersent options
+    parser.add_argument("--nonlinear_fc", type=int, default=0)
+    parser.add_argument("--lstm_dim", type=int, default=2048)
+
     # data options
     parser.add_argument("--min_freq", type=int, default=10)
     # gpu options
