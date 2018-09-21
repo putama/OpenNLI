@@ -109,11 +109,14 @@ if __name__ == '__main__':
     parser.add_argument("--dropout_rate", type=float, default=0.1)
     # residual encoder options
     parser.add_argument("--n_layers", type=int, default=1)
+    parser.add_argument('--lstm_dims', nargs='+', type=int,
+                        default=[512, 1024, 2048])
     # infersent options
     parser.add_argument("--nonlinear_fc", type=int, default=0)
     parser.add_argument("--lstm_dim", type=int, default=2048)
 
     # data options
+    parser.add_argument("--max_seq_length", type=int, default=60)
     parser.add_argument("--min_freq", type=int, default=10)
     # gpu options
     parser.add_argument("--gpu_id", type=int, default=-1, help="GPU ID")

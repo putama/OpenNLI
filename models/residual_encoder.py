@@ -4,38 +4,39 @@ from models.nli_model import NLI_Model
 
 
 class ResidualEncoder(NLI_Model):
-    def __init__(self, arguments, h_size=[600, 600, 600], max_l=60):
+    def __init__(self, arguments):
         """
         :param arguments: main python arguments
-        :param h_size: hidden size of each layer of LSTM
-        :param dropout_r: dropout rate
-        :param max_l: maximum sequence length
-        :param k:
-        :param n_layers:
         """
         super(ResidualEncoder, self).__init__()
+        hidden_size = arguments.lstm_dims
         self.embeddings = nn.Embedding(arguments.vocab_size, arguments.embedding_dim)
 
-        self.lstm = nn.LSTM(input_size=arguments.embedding_dim, hidden_size=h_size[0],
+        self.lstm = nn.LSTM(input_size=arguments.embedding_dim,
+                            hidden_size=hidden_size[0],
                             num_layers=1, bidirectional=True)
 
-        self.lstm_1 = nn.LSTM(input_size=(arguments.embedding_dim + h_size[0] * 2),
-                              hidden_size=h_size[1],num_layers=1, bidirectional=True)
+        self.lstm_1 = nn.LSTM(input_size=(arguments.embedding_dim + hidden_size[0] * 2),
+                              hidden_size=hidden_size[1],
+                              num_layers=1, bidirectional=True)
 
-        self.lstm_2 = nn.LSTM(input_size=(arguments.embedding_dim + h_size[0] * 2),
-                              hidden_size=h_size[2], num_layers=1, bidirectional=True)
+        self.lstm_2 = nn.LSTM(input_size=(arguments.embedding_dim +
+                                          hidden_size[0] * 2 +
+                                          hidden_size[1] * 2),
+                              hidden_size=hidden_size[2], num_layers=1,
+                              bidirectional=True)
 
-        self.max_l = max_l
-        self.h_size = h_size
+        self.max_length = arguments.max_seq_length
+        self.hidden_size = hidden_size
 
         if arguments.n_layers == 1:
-            self.classifier = nn.Sequential(*[nn.Linear(h_size[2] * 2 * 4,
+            self.classifier = nn.Sequential(*[nn.Linear(hidden_size[2] * 2 * 4,
                                                         arguments.fc_dim),
                                               nn.ReLU(),
                                               nn.Dropout(arguments.dropout_rate),
                                               nn.Linear(arguments.fc_dim, 3)])
         elif arguments.n_layers == 2:
-            self.classifier = nn.Sequential(*[nn.Linear(h_size[2] * 2 * 4,
+            self.classifier = nn.Sequential(*[nn.Linear(hidden_size[2] * 2 * 4,
                                                         arguments.fc_dim),
                                               nn.ReLU(),
                                               nn.Dropout(arguments.dropout_rate),
@@ -58,15 +59,14 @@ class ResidualEncoder(NLI_Model):
                 total_c += d1 * d2
         print("Total count:", total_c)
 
-
     def forward(self, s1, l1, s2, l2):
-        if self.max_l:
-            l1 = l1.clamp(max=self.max_l)
-            l2 = l2.clamp(max=self.max_l)
-            if s1.size(0) > self.max_l:
-                s1 = s1[:self.max_l, :]
-            if s2.size(0) > self.max_l:
-                s2 = s2[:self.max_l, :]
+        if self.max_length:
+            l1 = l1.clamp(max=self.max_length)
+            l2 = l2.clamp(max=self.max_length)
+            if s1.size(0) > self.max_length:
+                s1 = s1[:self.max_length, :]
+            if s2.size(0) > self.max_length:
+                s2 = s2[:self.max_length, :]
 
         p_s1 = self.embeddings(s1)
         p_s2 = self.embeddings(s2)
@@ -87,8 +87,8 @@ class ResidualEncoder(NLI_Model):
         s1_layer2_out = self.rnn_autosort_forward(self.lstm_1, s1_layer2_in, l1)
         s2_layer2_out = self.rnn_autosort_forward(self.lstm_1, s2_layer2_in, l2)
 
-        s1_layer3_in = torch.cat([p_s1, s1_layer1_out + s1_layer2_out], dim=2)
-        s2_layer3_in = torch.cat([p_s2, s2_layer1_out + s2_layer2_out], dim=2)
+        s1_layer3_in = torch.cat([p_s1, s1_layer1_out, s1_layer2_out], dim=2)
+        s2_layer3_in = torch.cat([p_s2, s2_layer1_out, s2_layer2_out], dim=2)
 
         s1_layer3_out = self.rnn_autosort_forward(self.lstm_2, s1_layer3_in, l1)
         s2_layer3_out = self.rnn_autosort_forward(self.lstm_2, s2_layer3_in, l2)
