@@ -4,86 +4,24 @@ from models.nli_model import NLI_Model
 from torch.autograd import Variable
 
 
-class InferSentEncoder(nn.Module):
+class InferSent(NLI_Model):
+    def __init__(self, args):
+        super(InferSent, self).__init__()
 
-    def __init__(self, config):
-        super(InferSentEncoder, self).__init__()
-        self.bsize = config['bsize']
-        self.word_emb_dim = config['word_emb_dim']
-        self.enc_lstm_dim = config['enc_lstm_dim']
-        self.pool_type = config['pool_type']
-        self.dpout_model = config['dpout_model']
-        self.version = 1 if 'version' not in config else config['version']
+        # sentence encoder
+        self.word_emb_dim = args.embedding_dim
+        self.enc_lstm_dim = args.lstm_dim
+        self.pool_type = args.pool_type
+        self.dpout_model = args.lstm_dropout_rate
 
         self.enc_lstm = nn.LSTM(self.word_emb_dim, self.enc_lstm_dim, 1,
                                 bidirectional=True, dropout=self.dpout_model)
-
-        assert self.version in [1, 2]
-        if self.version == 1:
-            self.bos = '<s>'
-            self.eos = '</s>'
-            self.max_pad = True
-            self.moses_tok = False
-        elif self.version == 2:
-            self.bos = '<p>'
-            self.eos = '</p>'
-            self.max_pad = False
-            self.moses_tok = True
-
-    def is_cuda(self):
-        # either all weights are on cpu or they are on gpu
-        return self.enc_lstm.bias_hh_l0.data.is_cuda
-
-    def forward(self, sent_tuple):
-        # sent_len: [max_len, ..., min_len] (bsize)
-        # sent: Variable(seqlen x bsize x worddim)
-        sent, sent_len = sent_tuple
-
-        # Sort by length (keep idx)
-        sent_len_sorted, idx_sort = np.sort(sent_len)[::-1], np.argsort(-sent_len)
-        idx_unsort = np.argsort(idx_sort)
-
-        idx_sort = torch.from_numpy(idx_sort).cuda() if self.is_cuda() \
-            else torch.from_numpy(idx_sort)
-        sent = sent.index_select(1, Variable(idx_sort))
-
-        # Handling padding in Recurrent Networks
-        sent_packed = nn.utils.rnn.pack_padded_sequence(sent, sent_len_sorted)
-        sent_output = self.enc_lstm(sent_packed)[0]  # seqlen x batch x 2*nhid
-        sent_output = nn.utils.rnn.pad_packed_sequence(sent_output)[0]
-
-        # Un-sort by length
-        idx_unsort = torch.from_numpy(idx_unsort).cuda() if self.is_cuda() \
-            else torch.from_numpy(idx_unsort)
-        sent_output = sent_output.index_select(1, Variable(idx_unsort))
-
-        # Pooling
-        if self.pool_type == "mean":
-            sent_len = Variable(torch.FloatTensor(sent_len.copy())).unsqueeze(1).cuda()
-            emb = torch.sum(sent_output, 0).squeeze(0)
-            emb = emb / sent_len.expand_as(emb)
-        elif self.pool_type == "max":
-            if not self.max_pad:
-                sent_output[sent_output == 0] = -1e9
-            emb = torch.max(sent_output, 0)[0]
-            if emb.ndimension() == 3:
-                emb = emb.squeeze(0)
-                assert emb.ndimension() == 2
-
-        return emb
-
-
-class Infersent(NLI_Model):
-    def __init__(self, args):
-        super(Infersent, self).__init__()
 
         # classifier
         self.nonlinear_fc = args.nonlinear_fc
         self.fc_dim = args.fc_dim
         self.enc_lstm_dim = args.lstm_dim
         self.dpout_fc = args.dropout_rate
-
-        self.encoder = InferSentEncoder(args)
         self.inputdim = 4 * self.lstm_dim
 
         if self.nonlinear_fc:
@@ -104,15 +42,31 @@ class Infersent(NLI_Model):
                 nn.Linear(self.fc_dim, super().N_CLASS)
             )
 
-    def forward(self, s1, s2):
-        # s1 : (s1, s1_len)
-        u = self.encoder(s1)
-        v = self.encoder(s2)
+    def encode_sentence(self, sent, len):
+        if self.max_length:
+            len = len.clamp(max=self.max_length)
+            if sent.size(0) > self.max_length:
+                sent = sent[:self.max_length, :]
 
-        features = torch.cat((u, v, torch.abs(u - v), u * v), 1)
-        output = self.classifier(features)
-        return output
+        embeds = self.embeddings(sent)
+        sent_enc_out = self.rnn_autosort_forward(self.lstm, embeds, len)
+        # pooling of contextualized word representation over steps
+        if self.pool_type == "mean":
+            sent_enc_pooled = self.mean_along_time(sent_enc_out, len)
+        elif self.pool_type == "max":
+            sent_enc_pooled = self.max_along_time(sent_enc_out, len)
 
-    def encode(self, s1):
-        emb = self.encoder(s1)
-        return emb
+        return sent_enc_pooled
+
+    def forward(self, sent1, len1, sent2, len2):
+        s1_enc_pooled = self.encode_sent(sent1, len1)
+        s2_enc_pooled = self.encode_sent(sent2, len2)
+
+        classifier_input = torch.cat((s1_enc_pooled,
+                                      s2_enc_pooled,
+                                      s1_enc_pooled - s2_enc_pooled,
+                                      s1_enc_pooled * s2_enc_pooled), 1)
+
+        out = self.classifier(classifier_input)
+        return out
+

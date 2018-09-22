@@ -40,11 +40,10 @@ def main(arguments):
     save_dir = datetime.now().strftime("experiment_D%d-%m_H%H-%M")
     os.mkdir(os.path.join(arguments.checkpoint_dir, save_dir))
 
-    lr = arguments.learning_rate
     step_i = 0
     for epoch in range(arguments.epoch):
         decay_i = epoch // arguments.decay_every
-        lr = lr * (arguments.decay_rate ** decay_i)
+        lr = arguments.learning_rate * (arguments.decay_rate ** decay_i)
         adjust_learning_rate(optimizer, lr)
         print("learning rate is decayed to:", lr)
 
@@ -114,6 +113,8 @@ if __name__ == '__main__':
     # infersent options
     parser.add_argument("--nonlinear_fc", type=int, default=0)
     parser.add_argument("--lstm_dim", type=int, default=2048)
+    parser.add_argument("--lstm_dropout_rate", type=float, default=0.)
+    parser.add_argument("--pool_type", type=str, default="max")
 
     # data options
     parser.add_argument("--max_seq_length", type=int, default=60)

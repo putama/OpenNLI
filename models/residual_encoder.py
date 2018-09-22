@@ -59,78 +59,43 @@ class ResidualEncoder(NLI_Model):
                 total_c += d1 * d2
         print("Total count:", total_c)
 
-    def forward(self, s1, l1, s2, l2):
+    def encode_sentence(self, sent, len):
         if self.max_length:
-            l1 = l1.clamp(max=self.max_length)
-            l2 = l2.clamp(max=self.max_length)
-            if s1.size(0) > self.max_length:
-                s1 = s1[:self.max_length, :]
-            if s2.size(0) > self.max_length:
-                s2 = s2[:self.max_length, :]
+            len = len.clamp(max=self.max_length)
+            if sent.size(0) > self.max_length:
+                sent = sent[:self.max_length, :]
 
-        p_s1 = self.embeddings(s1)
-        p_s2 = self.embeddings(s2)
+        # layer-1 encoding
+        embeds = self.embeddings(sent)
+        sent_layer1_out = self.rnn_autosort_forward(self.lstm, embeds, len)
+        # shortcut connection #1
+        sent_layer2_in = torch.cat([embeds, sent_layer1_out], dim=2)
+        # layer-2 encoding
+        sent_layer2_out = self.rnn_autosort_forward(self.lstm_1, sent_layer2_in, len)
+        # shortcut connection #2
+        sent_layer3_in = torch.cat([embeds, sent_layer1_out, sent_layer2_out], dim=2)
+        # layer-3 encoding
+        sent_layer3_out = self.rnn_autosort_forward(self.lstm_2, sent_layer3_in, len)
+        # pooling of contextualized word representation over steps
+        if self.pool_type == "mean":
+            sent_enc_pooled = self.mean_along_time(sent_layer3_out, len)
+        elif self.pool_type == "max":
+            sent_enc_pooled = self.max_along_time(sent_layer3_out, len)
 
-        s1_layer1_out = self.rnn_autosort_forward(self.lstm, p_s1, l1)
-        s2_layer1_out = self.rnn_autosort_forward(self.lstm, p_s2, l2)
+        return sent_enc_pooled
 
-        # Length truncate
-        len1 = s1_layer1_out.size(0)
-        len2 = s2_layer1_out.size(0)
-        p_s1 = p_s1[:len1, :, :]
-        p_s2 = p_s2[:len2, :, :]
+    def forward(self, sent1, len1, sent2, len2):
+        s1_enc_pooled = self.encode_sentence(sent1, len1)
+        s2_enc_pooled = self.encode_sentence(sent2, len2)
 
-        # Using high way
-        s1_layer2_in = torch.cat([p_s1, s1_layer1_out], dim=2)
-        s2_layer2_in = torch.cat([p_s2, s2_layer1_out], dim=2)
+        classifier_input = torch.cat((s1_enc_pooled,
+                                      s2_enc_pooled,
+                                      s1_enc_pooled - s2_enc_pooled,
+                                      s1_enc_pooled * s2_enc_pooled),
+                                     dim=1)
 
-        s1_layer2_out = self.rnn_autosort_forward(self.lstm_1, s1_layer2_in, l1)
-        s2_layer2_out = self.rnn_autosort_forward(self.lstm_1, s2_layer2_in, l2)
-
-        s1_layer3_in = torch.cat([p_s1, s1_layer1_out, s1_layer2_out], dim=2)
-        s2_layer3_in = torch.cat([p_s2, s2_layer1_out, s2_layer2_out], dim=2)
-
-        s1_layer3_out = self.rnn_autosort_forward(self.lstm_2, s1_layer3_in, l1)
-        s2_layer3_out = self.rnn_autosort_forward(self.lstm_2, s2_layer3_in, l2)
-
-        s1_layer3_maxout = self.max_along_time(s1_layer3_out, l1)
-        s2_layer3_maxout = self.max_along_time(s2_layer3_out, l2)
-
-        # Only use the last layer
-        features = torch.cat([s1_layer3_maxout, s2_layer3_maxout,
-                              torch.abs(s1_layer3_maxout - s2_layer3_maxout),
-                              s1_layer3_maxout * s2_layer3_maxout],
-                             dim=1)
-
-        out = self.classifier(features)
-        return out
-
-    def max_along_time(self, inputs, lengths, batch_first=False):
-        """
-        :param inputs: [T * B * D]
-        :param lengths:  [B]
-        :return: [B * D] max_along_time
-        """
-        ls = list(lengths)
-
-        if not batch_first:
-            b_seq_max_list = []
-            for i, l in enumerate(ls):
-                seq_i = inputs[:l, i, :]
-                seq_i_max, _ = seq_i.max(dim=0)
-                seq_i_max = seq_i_max.squeeze()
-                b_seq_max_list.append(seq_i_max)
-
-            return torch.stack(b_seq_max_list)
-        else:
-            b_seq_max_list = []
-            for i, l in enumerate(ls):
-                seq_i = inputs[i, :l, :]
-                seq_i_max, _ = seq_i.max(dim=0)
-                seq_i_max = seq_i_max.squeeze()
-                b_seq_max_list.append(seq_i_max)
-
-            return torch.stack(b_seq_max_list)
+        logit = self.classifier(classifier_input)
+        return logit
 
     def compute_loss(self, logit, target):
         """

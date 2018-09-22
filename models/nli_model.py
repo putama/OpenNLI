@@ -50,3 +50,57 @@ class NLI_Model(nn.Module):
         output_ori_order = output.index_select(1, Variable(idx_unsort))
 
         return output_ori_order
+
+
+    def max_along_time(self, inputs, lengths, batch_first=False):
+        """
+        :param inputs: [T * B * D]
+        :param lengths:  [B]
+        :return: [B * D] max_along_time
+        """
+        ls = list(lengths)
+
+        if not batch_first:
+            b_seq_max_list = []
+            for i, l in enumerate(ls):
+                seq_i = inputs[:l, i, :]
+                seq_i_max, _ = seq_i.max(dim=0)
+                seq_i_max = seq_i_max.squeeze()
+                b_seq_max_list.append(seq_i_max)
+
+            return torch.stack(b_seq_max_list)
+        else:
+            b_seq_max_list = []
+            for i, l in enumerate(ls):
+                seq_i = inputs[i, :l, :]
+                seq_i_max, _ = seq_i.max(dim=0)
+                seq_i_max = seq_i_max.squeeze()
+                b_seq_max_list.append(seq_i_max)
+
+            return torch.stack(b_seq_max_list)
+
+
+    def mean_along_time(self, inputs, lengths, batch_first=False):
+        """
+        :param inputs: [T * B * D]
+        :param lengths:  [B]
+        :return: [B * D] max_along_time
+        """
+        ls = list(lengths)
+
+        if not batch_first:
+            b_seq_mean_list = []
+            for i, l in enumerate(ls):
+                seq_i = inputs[:l, i, :]
+                seq_i_mean = seq_i.mean(dim=0)
+                b_seq_mean_list.append(seq_i_mean)
+
+            return torch.stack(b_seq_mean_list)
+        else:
+            b_seq_mean_list = []
+            for i, l in enumerate(ls):
+                seq_i = inputs[i, :l, :]
+                seq_i_mean = seq_i.mean(dim=0)
+                b_seq_mean_list.append(seq_i_mean)
+
+            return torch.stack(b_seq_mean_list)

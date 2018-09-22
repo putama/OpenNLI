@@ -111,7 +111,7 @@ if __name__ == '__main__':
 
     parser.add_argument("--nli_dataset", type=str, default="multinli")
     parser.add_argument("--dev", action="store_true")
-    parser.add_argument("--missmatch", action="store_true")
+    parser.add_argument("--mismatch", action="store_true")
     # paths options
     parser.add_argument("--data_root", type=str, default="data")
     parser.add_argument("--checkpoint_path", type=str,
