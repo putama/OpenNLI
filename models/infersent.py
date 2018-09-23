@@ -13,16 +13,18 @@ class InferSent(NLI_Model):
         self.enc_lstm_dim = args.lstm_dim
         self.pool_type = args.pool_type
         self.dpout_model = args.lstm_dropout_rate
+        self.max_length = args.max_seq_length
 
-        self.enc_lstm = nn.LSTM(self.word_emb_dim, self.enc_lstm_dim, 1,
+        self.embeddings = nn.Embedding(args.vocab_size, args.embedding_dim)
+        self.lstm = nn.LSTM(self.word_emb_dim, self.enc_lstm_dim, 1,
                                 bidirectional=True, dropout=self.dpout_model)
 
         # classifier
         self.nonlinear_fc = args.nonlinear_fc
         self.fc_dim = args.fc_dim
-        self.enc_lstm_dim = args.lstm_dim
+        self.lstm_dim = args.lstm_dim
         self.dpout_fc = args.dropout_rate
-        self.inputdim = 4 * self.lstm_dim
+        self.inputdim = 2 * 4 * self.lstm_dim
 
         if self.nonlinear_fc:
             self.classifier = nn.Sequential(
@@ -42,6 +44,9 @@ class InferSent(NLI_Model):
                 nn.Linear(self.fc_dim, super().N_CLASS)
             )
 
+        # set loss criterion
+        self.criterion = nn.CrossEntropyLoss()
+
     def encode_sentence(self, sent, len):
         if self.max_length:
             len = len.clamp(max=self.max_length)
@@ -59,8 +64,8 @@ class InferSent(NLI_Model):
         return sent_enc_pooled
 
     def forward(self, sent1, len1, sent2, len2):
-        s1_enc_pooled = self.encode_sent(sent1, len1)
-        s2_enc_pooled = self.encode_sent(sent2, len2)
+        s1_enc_pooled = self.encode_sentence(sent1, len1)
+        s2_enc_pooled = self.encode_sentence(sent2, len2)
 
         classifier_input = torch.cat((s1_enc_pooled,
                                       s2_enc_pooled,

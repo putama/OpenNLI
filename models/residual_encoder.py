@@ -97,10 +97,3 @@ class ResidualEncoder(NLI_Model):
         logit = self.classifier(classifier_input)
         return logit
 
-    def compute_loss(self, logit, target):
-        """
-        :param logit: matrix of logit vectors of size [batchsize x n_class]
-        :param target: tensor of true labels [batchsize]
-        :return: loss computed based on defined criterion
-        """
-        return self.criterion(logit, target)

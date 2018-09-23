@@ -104,3 +104,11 @@ class NLI_Model(nn.Module):
                 b_seq_mean_list.append(seq_i_mean)
 
             return torch.stack(b_seq_mean_list)
+
+    def compute_loss(self, logit, target):
+        """
+        :param logit: matrix of logit vectors of size [batchsize x n_class]
+        :param target: tensor of true labels [batchsize]
+        :return: loss computed based on defined criterion
+        """
+        return self.criterion(logit, target)

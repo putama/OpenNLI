@@ -5,6 +5,7 @@ import numpy as np
 from datautil import build_mnli_split, build_nli_iterator_all
 from evaluate import eval
 from models.residual_encoder import ResidualEncoder
+from models.infersent import InferSent
 from models.trainer import build_optimizer, adjust_learning_rate
 from tqdm import tqdm
 from datetime import datetime
@@ -28,7 +29,13 @@ def main(arguments):
     if not "vocab_size" in arguments:
         raise Exception("vocab size has not been determined")
 
-    multinli_model = ResidualEncoder(arguments)
+    if arguments.model == "stacked":
+        multinli_model = ResidualEncoder(arguments)
+    elif arguments.model == "infersent":
+        multinli_model = InferSent(arguments)
+    else:
+        raise Exception("invalid model")
+
     multinli_model.load_pretrained_emb(arguments)
     multinli_model = to_cuda(multinli_model)
     multinli_model.display()
@@ -71,9 +78,9 @@ def main(arguments):
                       (batch_i + 1, avg_acc, avg_loss))
                 multinli_model.train()
                 # save current model to ckpt file
-                save_file = "%s_model_epoch_%d_step_%d_acc_%.3f.pt.tar" % \
-                            (arguments.nli_dataset, (epoch + 1),
-                             (batch_i + 1), avg_acc)
+                save_file = "%s_%s_model_epoch_%d_step_%d_acc_%.3f.pt.tar" % \
+                            (arguments.model, arguments.nli_dataset,
+                             (epoch + 1), (batch_i + 1), avg_acc)
                 save_path = os.path.join(arguments.checkpoint_dir,
                                          save_dir,
                                          save_file)
@@ -94,6 +101,7 @@ if __name__ == '__main__':
     parser.add_argument("--checkpoint_dir", type=str, default="checkpoints")
     parser.add_argument("--embedding_pt_file", type=str, default="extracted_glove.pt.tar")
     # learning options
+    parser.add_argument("--model", type=str, required=True)
     parser.add_argument("--optim", type=str, default="adam")
     parser.add_argument("--batch_size", type=int, default=32)
     parser.add_argument("--batch_size_eval", type=int, default=200)
