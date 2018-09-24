@@ -4,8 +4,11 @@ import torch
 import numpy as np
 from datautil import build_mnli_split, build_nli_iterator_all
 from evaluate import eval
+
 from models.residual_encoder import ResidualEncoder
 from models.infersent import InferSent
+from models.decomposable_attn import DecompAttention
+
 from models.trainer import build_optimizer, adjust_learning_rate
 from tqdm import tqdm
 from datetime import datetime
@@ -33,6 +36,8 @@ def main(arguments):
         multinli_model = ResidualEncoder(arguments)
     elif arguments.model == "infersent":
         multinli_model = InferSent(arguments)
+    elif arguments.model == "decomposable":
+        multinli_model = DecompAttention(arguments)
     else:
         raise Exception("invalid model")
 
@@ -63,9 +68,9 @@ def main(arguments):
             target_y = batch.label
             s1, s1_len, s2, s2_len, target_y = to_cuda(s1, s1_len, s2, s2_len, target_y)
 
-            logit = multinli_model(s1, s1_len, s2, s2_len)
-            loss = multinli_model.compute_loss(logit, target_y)
-            acc = (torch.max(logit, 1)[1] == target_y).sum().item() / float(len(batch))
+            class_scores = multinli_model(s1, s1_len, s2, s2_len)
+            loss = multinli_model.compute_loss(class_scores, target_y)
+            acc = (torch.max(class_scores, 1)[1] == target_y).sum().item() / float(len(batch))
 
             optimizer.zero_grad()
             loss.backward()

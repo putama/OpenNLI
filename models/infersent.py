@@ -35,13 +35,13 @@ class InferSent(NLI_Model):
                 nn.Linear(self.fc_dim, self.fc_dim),
                 nn.Tanh(),
                 nn.Dropout(p=self.dropout_rate),
-                nn.Linear(self.fc_dim, super().N_CLASS)
+                nn.Linear(self.fc_dim, super().label_num)
             )
         else:
             self.classifier = nn.Sequential(
                 nn.Linear(self.inputdim, self.fc_dim),
                 nn.Linear(self.fc_dim, self.fc_dim),
-                nn.Linear(self.fc_dim, super().N_CLASS)
+                nn.Linear(self.fc_dim, super().label_num)
             )
 
         # set loss criterion

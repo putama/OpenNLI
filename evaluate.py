@@ -7,7 +7,11 @@ import os
 
 from datautil import build_mnli_split, build_nli_iterator
 from utilities import to_cuda
+
 from models.residual_encoder import ResidualEncoder
+from models.infersent import InferSent
+from models.decomposable_attn import DecompAttention
+
 from tqdm import tqdm
 
 
@@ -25,10 +29,10 @@ def eval(nli_model: nn.Module, data_iter):
         target_y = batch.label
         s1, s1_len, s2, s2_len, target_y = to_cuda(s1, s1_len, s2, s2_len, target_y)
 
-        logit = nli_model(s1, s1_len, s2, s2_len)
-        loss = nli_model.compute_loss(logit, target_y)
+        class_scores = nli_model(s1, s1_len, s2, s2_len)
+        loss = nli_model.compute_loss(class_scores, target_y)
 
-        correct_n = (torch.max(logit, 1)[1] == target_y).sum().item()
+        correct_n = (torch.max(class_scores, 1)[1] == target_y).sum().item()
         correct_total += correct_n
         loss_total += loss.item()
 
@@ -53,8 +57,8 @@ def predict(nli_model: nn.Module, data_iter,
         target_y = batch.label
         s1, s1_len, s2, s2_len, target_y = to_cuda(s1, s1_len, s2, s2_len, target_y)
 
-        logit = nli_model(s1, s1_len, s2, s2_len)
-        predictions = list(logit.max(dim=1)[1].cpu().numpy())
+        class_scores = nli_model(s1, s1_len, s2, s2_len)
+        predictions = list(class_scores.max(dim=1)[1].cpu().numpy())
         pairIDs = list(batch.pairID.cpu().numpy())
         for id, pred in zip(pairIDs, predictions):
             yield (id, label_field.vocab.itos[pred])
@@ -70,12 +74,12 @@ def main(args):
 
     splits = build_mnli_split(args, reverse=False)
     if args.dev:
-        if args.missmatch:
+        if args.mismatch:
             split = splits[3]
         else:
             split = splits[1]
     else:
-        if args.missmatch:
+        if args.mismatch:
             split = splits[4]
         else:
             split = splits[2]
@@ -85,7 +89,16 @@ def main(args):
                             map_location=lambda storage, loc: storage)
     state_dict = checkpoint["state_dict"]
     train_args = checkpoint["train_args"]
-    nli_model = ResidualEncoder(train_args)
+
+    if args.model == "stacked":
+        nli_model = ResidualEncoder(train_args)
+    elif args.model == "infersent":
+        nli_model = InferSent(train_args)
+    elif args.model == "decomposable":
+        nli_model = DecompAttention(train_args)
+    else:
+        raise Exception("invalid model")
+
     nli_model.load_state_dict(state_dict)
     nli_model = to_cuda(nli_model)
 
@@ -108,7 +121,7 @@ def main(args):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='NLI training')
     # evaluation options
-
+    parser.add_argument("--model", type=str, required=True)
     parser.add_argument("--nli_dataset", type=str, default="multinli")
     parser.add_argument("--dev", action="store_true")
     parser.add_argument("--mismatch", action="store_true")

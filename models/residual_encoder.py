@@ -34,7 +34,8 @@ class ResidualEncoder(NLI_Model):
                                                         arguments.fc_dim),
                                               nn.ReLU(),
                                               nn.Dropout(arguments.dropout_rate),
-                                              nn.Linear(arguments.fc_dim, 3)])
+                                              nn.Linear(arguments.fc_dim,
+                                                        super().label_num)])
         elif arguments.n_layers == 2:
             self.classifier = nn.Sequential(*[nn.Linear(hidden_size[2] * 2 * 4,
                                                         arguments.fc_dim),
@@ -44,7 +45,8 @@ class ResidualEncoder(NLI_Model):
                                                         arguments.fc_dim),
                                               nn.ReLU(),
                                               nn.Dropout(arguments.dropout_rate),
-                                              nn.Linear(arguments.fc_dim, 3)])
+                                              nn.Linear(arguments.fc_dim,
+                                                        super().label_num)])
         else:
             raise Exception("invalid number of MLP layers")
 
