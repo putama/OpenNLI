@@ -5,8 +5,10 @@ from torch.autograd import Variable
 from torch.nn.utils.rnn import pack_padded_sequence, pad_packed_sequence
 from utilities import to_cuda
 
+
 class NLI_Model(nn.Module):
-    N_CLASS = 3
+
+    label_num = 3
 
     def display(self):
         print(self)
@@ -51,36 +53,16 @@ class NLI_Model(nn.Module):
 
         return output_ori_order
 
-
     def max_along_time(self, inputs, lengths, batch_first=False):
-        """
-        :param inputs: [T * B * D]
-        :param lengths:  [B]
-        :return: [B * D] max_along_time
-        """
-        ls = list(lengths)
-
-        if not batch_first:
-            b_seq_max_list = []
-            for i, l in enumerate(ls):
-                seq_i = inputs[:l, i, :]
-                seq_i_max, _ = seq_i.max(dim=0)
-                seq_i_max = seq_i_max.squeeze()
-                b_seq_max_list.append(seq_i_max)
-
-            return torch.stack(b_seq_max_list)
-        else:
-            b_seq_max_list = []
-            for i, l in enumerate(ls):
-                seq_i = inputs[i, :l, :]
-                seq_i_max, _ = seq_i.max(dim=0)
-                seq_i_max = seq_i_max.squeeze()
-                b_seq_max_list.append(seq_i_max)
-
-            return torch.stack(b_seq_max_list)
-
+        return self.pool_along_time("max", inputs, lengths, batch_first=batch_first)
 
     def mean_along_time(self, inputs, lengths, batch_first=False):
+        return self.pool_along_time("mean", inputs, lengths, batch_first=batch_first)
+
+    def sum_along_time(self, inputs, lengths, batch_first=False):
+        return self.pool_along_time("sum", inputs, lengths, batch_first=batch_first)
+
+    def pool_along_time(self, pooling_type, inputs, lengths, batch_first=False):
         """
         :param inputs: [T * B * D]
         :param lengths:  [B]
@@ -88,22 +70,21 @@ class NLI_Model(nn.Module):
         """
         ls = list(lengths)
 
-        if not batch_first:
-            b_seq_mean_list = []
-            for i, l in enumerate(ls):
+        b_seq_pooled_list = []
+        for i, l in enumerate(ls):
+            if not batch_first:
                 seq_i = inputs[:l, i, :]
-                seq_i_mean = seq_i.mean(dim=0)
-                b_seq_mean_list.append(seq_i_mean)
-
-            return torch.stack(b_seq_mean_list)
-        else:
-            b_seq_mean_list = []
-            for i, l in enumerate(ls):
+            else:
                 seq_i = inputs[i, :l, :]
-                seq_i_mean = seq_i.mean(dim=0)
-                b_seq_mean_list.append(seq_i_mean)
 
-            return torch.stack(b_seq_mean_list)
+            if pooling_type == "max":
+                seq_i_pooled, _ = seq_i.max(dim=0)
+            elif pooling_type == "mean":
+                seq_i_pooled = seq_i.mean(dim=0)
+            elif pooling_type == "sum":
+                seq_i_pooled = seq_i.sum(dim=0)
+            b_seq_pooled_list.append(seq_i_pooled)
+        return torch.stack(b_seq_pooled_list)
 
     def compute_loss(self, logit, target):
         """
