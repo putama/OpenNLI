@@ -31,11 +31,11 @@ class DecompAttention(NLI_Model):
 
     def _mlp_layers(self, input_dim, output_dim):
         mlp_layers = []
-        mlp_layers.append(nn.Dropout(p=0.2))
+        mlp_layers.append(nn.Dropout(p=0.1))
         mlp_layers.append(nn.Linear(
             input_dim, output_dim, bias=True))
         mlp_layers.append(nn.ReLU())
-        mlp_layers.append(nn.Dropout(p=0.2))
+        mlp_layers.append(nn.Dropout(p=0.1))
         mlp_layers.append(nn.Linear(
             output_dim, output_dim, bias=True))
         mlp_layers.append(nn.ReLU())

@@ -9,35 +9,37 @@ class ResidualEncoder(NLI_Model):
         :param arguments: main python arguments
         """
         super(ResidualEncoder, self).__init__()
-        hidden_size = arguments.lstm_dims
+
+        self.max_length = arguments.max_seq_length
+        self.hidden_size = arguments.lstm_dims
+        self.pool_type = arguments.pool_type
+
         self.embeddings = nn.Embedding(arguments.vocab_size, arguments.embedding_dim)
 
         self.lstm = nn.LSTM(input_size=arguments.embedding_dim,
-                            hidden_size=hidden_size[0],
+                            hidden_size=self.hidden_size[0],
                             num_layers=1, bidirectional=True)
 
-        self.lstm_1 = nn.LSTM(input_size=(arguments.embedding_dim + hidden_size[0] * 2),
-                              hidden_size=hidden_size[1],
+        self.lstm_1 = nn.LSTM(input_size=(arguments.embedding_dim +
+                                          self.hidden_size[0] * 2),
+                              hidden_size=self.hidden_size[1],
                               num_layers=1, bidirectional=True)
 
         self.lstm_2 = nn.LSTM(input_size=(arguments.embedding_dim +
-                                          hidden_size[0] * 2 +
-                                          hidden_size[1] * 2),
-                              hidden_size=hidden_size[2], num_layers=1,
+                                          self.hidden_size[0] * 2 +
+                                          self.hidden_size[1] * 2),
+                              hidden_size=self.hidden_size[2], num_layers=1,
                               bidirectional=True)
 
-        self.max_length = arguments.max_seq_length
-        self.hidden_size = hidden_size
-
         if arguments.n_layers == 1:
-            self.classifier = nn.Sequential(*[nn.Linear(hidden_size[2] * 2 * 4,
+            self.classifier = nn.Sequential(*[nn.Linear(self.hidden_size[2] * 2 * 4,
                                                         arguments.fc_dim),
                                               nn.ReLU(),
                                               nn.Dropout(arguments.dropout_rate),
                                               nn.Linear(arguments.fc_dim,
                                                         super().label_num)])
         elif arguments.n_layers == 2:
-            self.classifier = nn.Sequential(*[nn.Linear(hidden_size[2] * 2 * 4,
+            self.classifier = nn.Sequential(*[nn.Linear(self.hidden_size[2] * 2 * 4,
                                                         arguments.fc_dim),
                                               nn.ReLU(),
                                               nn.Dropout(arguments.dropout_rate),
