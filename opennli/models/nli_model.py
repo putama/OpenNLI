@@ -3,7 +3,7 @@ import torch
 from torch import nn
 from torch.autograd import Variable
 from torch.nn.utils.rnn import pack_padded_sequence, pad_packed_sequence
-from utilities import to_cuda
+from opennli.utilities.utilities import to_cuda
 
 
 class NLI_Model(nn.Module):
@@ -13,7 +13,19 @@ class NLI_Model(nn.Module):
     def display(self):
         print(self)
         print("is GPU?: {}".format(str(next(self.parameters()).is_cuda)))
+        all_total = 0
+        for param in self.parameters():
+            cur_total = 1
+            for i in list(param.size()):
+                cur_total *= i
+            all_total += cur_total
+        print("total number of parameters:", all_total)
 
+    def normalize_emb(self, emb):
+        squared = emb**2
+        sum_squared_sqrt = squared.sum(dim=1)**0.5
+        normalized = emb / sum_squared_sqrt.unsqueeze(1).expand_as(emb)
+        return normalized
 
     def load_pretrained_emb(self, arguments):
         if arguments.use_pretrained_emb:
@@ -30,7 +42,15 @@ class NLI_Model(nn.Module):
             if not self.embeddings.weight.data.size() == emb_tensor.size():
                 raise Exception("size mismatch between model emb and the loaded one")
 
-            self.embeddings.weight.data = emb_tensor
+            # normalized embbedings into unit vector
+            # freeze the parameters
+            if arguments.normalized_fixed:
+                print("normalize embeddings")
+                emb_tensor = self.normalize_emb(emb_tensor)
+                self.embeddings.weight.data = emb_tensor
+                self.embeddings.weight.require_grad = False
+            else:
+                self.embeddings.weight.data = emb_tensor
             return True
         else:
             return False

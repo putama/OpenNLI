@@ -2,8 +2,7 @@ import torch
 import tqdm
 import argparse
 import numpy as np
-from datautil import build_mnli_split
-from torchtext import data
+from opennli.data.datautil import build_mnli_split
 from tqdm import tqdm
 import os
 

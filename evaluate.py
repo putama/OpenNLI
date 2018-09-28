@@ -6,12 +6,12 @@ from torch import nn as nn
 import os
 import torch.nn.functional as F
 
-from datautil import build_mnli_split, build_nli_iterator
-from utilities import to_cuda
+from opennli.data.datautil import build_mnli_split, build_nli_iterator
+from opennli.utilities.utilities import to_cuda
 
-from models.residual_encoder import ResidualEncoder
-from models.infersent import InferSent
-from models.decomposable_attn import DecompAttention
+from opennli.models.residual_encoder import ResidualEncoder
+from opennli.models.infersent import InferSent
+from opennli.models.decomposable_attn import DecompAttention
 
 from tqdm import tqdm
 
@@ -43,7 +43,8 @@ def eval(nli_model: nn.Module, data_iter, calibration_error=False):
         correct_n = (torch.max(class_scores, 1)[1] == target_y).sum().item()
         correct_total += correct_n
         loss_total += loss.item()
-
+        # import pdb;
+        # pdb.set_trace()
         if calibration_error:
             maxres = torch.max(F.softmax(class_scores, dim=1), 1)
             maxconf = maxres[0].data.cpu().tolist()
@@ -118,7 +119,6 @@ def main(args):
                             map_location=lambda storage, loc: storage)
     state_dict = checkpoint["state_dict"]
     train_args = checkpoint["train_args"]
-    train_args.pool_type = "max"
 
     if args.model == "stacked":
         nli_model = ResidualEncoder(train_args)
@@ -136,7 +136,7 @@ def main(args):
     label_field = data_iter.dataset.fields['label']
 
     if args.dev:
-        avg_acc, avg_loss = eval(nli_model, data_iter, calibration_error=True)
+        avg_acc, avg_loss = eval(nli_model, data_iter, calibration_error=args.calibration)
         print("training validation. "
               "average acc: %.3f. average loss: %.3f" %
               (avg_acc, avg_loss))
@@ -158,6 +158,7 @@ if __name__ == '__main__':
     parser.add_argument("--nli_dataset", type=str, default="multinli")
     parser.add_argument("--dev", action="store_true")
     parser.add_argument("--mismatch", action="store_true")
+    parser.add_argument("--calibration", action="store_true")
     # paths options
     parser.add_argument("--data_root", type=str, default="data")
     parser.add_argument("--checkpoint_path", type=str,

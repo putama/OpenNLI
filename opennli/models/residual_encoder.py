@@ -1,6 +1,6 @@
 import torch
 import torch.nn as nn
-from models.nli_model import NLI_Model
+from opennli.models.nli_model import NLI_Model
 
 
 class ResidualEncoder(NLI_Model):
@@ -94,7 +94,7 @@ class ResidualEncoder(NLI_Model):
 
         classifier_input = torch.cat((s1_enc_pooled,
                                       s2_enc_pooled,
-                                      s1_enc_pooled - s2_enc_pooled,
+                                      torch.abs(s1_enc_pooled - s2_enc_pooled),
                                       s1_enc_pooled * s2_enc_pooled),
                                      dim=1)
 

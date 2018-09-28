@@ -79,7 +79,7 @@ def build_nli_iterator_all(splits, args, bucket=True):
 
     (multinli_train_iter,) = iteratorCls.splits((train,),
                                                 batch_size=(args.batch_size),
-                                                sort_within_batch=True,
+                                                sort_within_batch=True, shuffle=True,
                                                 repeat=False, sort_key=custom_sort_key)
 
     match_iters = iteratorCls.splits((dev_match, test_match), shuffle=False,

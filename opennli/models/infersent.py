@@ -1,7 +1,6 @@
 import torch
 from torch import nn
-from models.nli_model import NLI_Model
-from torch.autograd import Variable
+from opennli.models.nli_model import NLI_Model
 
 
 class InferSent(NLI_Model):
@@ -17,7 +16,7 @@ class InferSent(NLI_Model):
 
         self.embeddings = nn.Embedding(args.vocab_size, args.embedding_dim)
         self.lstm = nn.LSTM(self.word_emb_dim, self.enc_lstm_dim, 1,
-                                bidirectional=True, dropout=self.dpout_model)
+                            bidirectional=True, dropout=self.dpout_model)
 
         # classifier
         self.nonlinear_fc = args.nonlinear_fc

@@ -4,7 +4,6 @@ from torchtext import data
 class ShiftReduceField(data.Field):
 
     def __init__(self):
-
         super(ShiftReduceField, self).__init__(preprocessing=lambda parse: [
             'reduce' if t == ')' else 'shift' for t in parse if t != '('])
 
@@ -18,15 +17,17 @@ class ParsedTextField(data.Field):
         the parse tree annotations are already in tokenized form.
     """
     def __init__(self, eos_token='<pad>', lower=False, reverse=False):
-        """ remove parentheses to recover the original sentences """
-        preprocessing = lambda parse: [t for t in parse if t not in ('(', ')')]
         if reverse:
-            postprocessing = lambda parse, _: [list(reversed(p)) for p in parse]
+            super(ParsedTextField, self).__init__(
+                eos_token=eos_token, lower=lower,
+                preprocessing=lambda parse: [t for t in parse if t not in ('(', ')')],
+                postprocessing=lambda parse, _: [list(reversed(p)) for p in parse],
+                include_lengths=True)
         else:
-            postprocessing = None
-        super(ParsedTextField, self).__init__(
-            eos_token=eos_token, lower=lower, preprocessing=preprocessing,
-            postprocessing=postprocessing, include_lengths=True)
+            super(ParsedTextField, self).__init__(
+                eos_token=eos_token, lower=lower,
+                preprocessing=lambda parse: [t for t in parse if t not in ('(', ')')],
+                include_lengths=True)
 
 
 class NLIDataset(data.TabularDataset):
@@ -41,8 +42,9 @@ class NLIDataset(data.TabularDataset):
             len(ex.premise), len(ex.hypothesis))
 
     @classmethod
-    def splits(cls, text_field, label_field, parse_field=None, extra_fields={}, root='.data',
-               train='train.jsonl', validation='val.jsonl', test='test.jsonl'):
+    def splits(cls, text_field, label_field, parse_field=None,
+               extra_fields={}, root='.data', train='train.jsonl',
+               validation='val.jsonl', test='test.jsonl'):
         """Create dataset objects for splits of the SNLI dataset.
 
         This is the most flexible way to use the dataset.
@@ -69,8 +71,10 @@ class NLIDataset(data.TabularDataset):
                       'sentence2': ('hypothesis', text_field),
                       'gold_label': ('label', label_field)}
         else:
-            fields = {'sentence1_binary_parse': [('premise', text_field), ('premise_transitions', parse_field)],
-                      'sentence2_binary_parse': [('hypothesis', text_field), ('hypothesis_transitions', parse_field)],
+            fields = {'sentence1_binary_parse': [('premise', text_field),
+                                                 ('premise_transitions', parse_field)],
+                      'sentence2_binary_parse': [('hypothesis', text_field),
+                                                 ('hypothesis_transitions', parse_field)],
                       'gold_label': ('label', label_field)}
 
         for key in extra_fields:
@@ -131,7 +135,8 @@ class SNLI(NLIDataset):
                train='snli_1.0_train.jsonl', validation='snli_1.0_dev.jsonl',
                test='snli_1.0_test.jsonl'):
         return super(SNLI, cls).splits(text_field, label_field, parse_field=parse_field,
-                                       root=root, train=train, validation=validation, test=test)
+                                       root=root, train=train, validation=validation,
+                                       test=test)
 
 
 class MultiNLI(NLIDataset):
@@ -140,13 +145,20 @@ class MultiNLI(NLIDataset):
     name = 'multinli'
 
     @classmethod
-    def splits(cls, text_field, label_field, parse_field=None, genre_field=None, root='.data',
+    def splits(cls, text_field, label_field, parse_field=None,
+               genre_field=None, pairID_field=None,
+               root='.data',
                train='multinli_1.0_train.jsonl',
                validation='multinli_1.0_dev_matched.jsonl',
                test='multinli_1.0_dev_mismatched.jsonl'):
         extra_fields = {}
         if genre_field is not None:
             extra_fields["genre"] = ("genre", genre_field)
+        if pairID_field is not None:
+            extra_fields["pairID"] = ("pairID", pairID_field)
 
-        return super(MultiNLI, cls).splits(text_field, label_field, parse_field=parse_field, extra_fields=extra_fields,
-                                           root=root, train=train, validation=validation, test=test)
+        return super(MultiNLI, cls).splits(text_field, label_field,
+                                           parse_field=parse_field,
+                                           extra_fields=extra_fields,
+                                           root=root, train=train,
+                                           validation=validation, test=test)

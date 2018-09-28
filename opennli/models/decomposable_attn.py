@@ -1,7 +1,7 @@
 import torch
 from torch import nn
 import torch.nn.functional as F
-from models.nli_model import NLI_Model
+from opennli.models.nli_model import NLI_Model
 
 class DecompAttention(NLI_Model):
 
@@ -12,6 +12,7 @@ class DecompAttention(NLI_Model):
         self.label_size = super().label_num
         self.para_init = para_init
         self.max_length = args.max_seq_length
+        self.pool_type = args.pool_type
 
         self.embeddings = nn.Embedding(args.vocab_size, args.embedding_dim)
         self.mlp_f = self._mlp_layers(self.embedding_size, self.embedding_size)
@@ -101,8 +102,12 @@ class DecompAttention(NLI_Model):
         g1 = g1.view(-1, maxlen1, self.embedding_size)
         g2 = g2.view(-1, maxlen2, self.embedding_size)
 
-        sent1_output = self.sum_along_time(g1, len1, batch_first=True)
-        sent2_output = self.sum_along_time(g2, len2, batch_first=True)
+        if self.pool_type == "max":
+            sent1_output = self.max_along_time(g1, len1, batch_first=True)
+            sent2_output = self.max_along_time(g2, len2, batch_first=True)
+        else:
+            sent1_output = self.sum_along_time(g1, len1, batch_first=True)
+            sent2_output = self.sum_along_time(g2, len2, batch_first=True)
 
         # concat sum-pooled representation and
         # project it back to original size
