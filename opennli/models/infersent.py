@@ -27,13 +27,13 @@ class InferSent(NLI_Model):
 
         if self.nonlinear_fc:
             self.classifier = nn.Sequential(
-                nn.Dropout(p=self.dropout_rate),
+                nn.Dropout(p=self.dpout_fc),
                 nn.Linear(self.inputdim, self.fc_dim),
                 nn.Tanh(),
-                nn.Dropout(p=self.dropout_rate),
+                nn.Dropout(p=self.dpout_fc),
                 nn.Linear(self.fc_dim, self.fc_dim),
                 nn.Tanh(),
-                nn.Dropout(p=self.dropout_rate),
+                nn.Dropout(p=self.dpout_fc),
                 nn.Linear(self.fc_dim, super().label_num)
             )
         else:

@@ -48,7 +48,7 @@ def main(arguments):
         raise Exception()
 
     all_emb = read_and_match_embeddings(vocab, arguments)
-    save_path =  os.path.join('data', arguments.nli_dataset, 'extracted_emb.pt.tar')
+    save_path =  os.path.join(arguments.data_root, arguments.nli_dataset, 'extracted_emb.pt.tar')
     torch.save(all_emb, save_path)
     print("extracted embedding is saved at", save_path)
 
@@ -57,10 +57,10 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='NLI training')
     # paths options
     parser.add_argument("--nli_dataset", type=str, default="multinli")
-    parser.add_argument("--data_root", type=str, default="data")
-    parser.add_argument("--save_dir", type=str, default="data/glove")
+    parser.add_argument("--data_root", type=str, default="../../data")
+    parser.add_argument("--save_dir", type=str, default="../../data/glove")
     parser.add_argument("--embedding_txt_file", type=str,
-                        default="data/glove/glove.840B.300d.txt")
+                        default="../../data/glove/glove.840B.300d.txt")
     parser.add_argument("--embedding_dim", type=int, default=300)
     # gpu options
     parser.add_argument("--gpu_id", type=int, default=-1, help="GPU ID")

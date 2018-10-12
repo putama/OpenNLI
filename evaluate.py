@@ -7,14 +7,13 @@ import os
 import torch.nn.functional as F
 
 from opennli.data.datautil import build_mnli_split, build_nli_iterator
-from opennli.utilities.utilities import to_cuda
+from opennli.utilities.utilities import to_cuda, ids2words, labels2prob, probs2entropy
 
 from opennli.models.residual_encoder import ResidualEncoder
 from opennli.models.infersent import InferSent
 from opennli.models.decomposable_attn import DecompAttention
 
 from tqdm import tqdm
-
 
 def eval(nli_model: nn.Module, data_iter, calibration_error=False):
     print("run evaluation...")
@@ -31,6 +30,9 @@ def eval(nli_model: nn.Module, data_iter, calibration_error=False):
     loss_total = 0.
     data_n = len(data_iter.dataset)
     batch_n = len(data_iter)
+
+    correct_entropy_tot = 0.0
+    misclassified_entropy_tot = 0.0
     for batch_i, batch in enumerate(tqdm(data_iter)):
         s1, s1_len = batch.premise
         s2, s2_len = batch.hypothesis
@@ -43,8 +45,27 @@ def eval(nli_model: nn.Module, data_iter, calibration_error=False):
         correct_n = (torch.max(class_scores, 1)[1] == target_y).sum().item()
         correct_total += correct_n
         loss_total += loss.item()
-        # import pdb;
-        # pdb.set_trace()
+
+        # evaluate disagreement
+        correct_i = (torch.max(class_scores, 1)[1] == target_y).nonzero().squeeze(1)
+        incorrect_i = ((torch.max(class_scores, 1)[1] == target_y)==0).nonzero().squeeze(1)
+
+        misclassified_labels = batch.label_list.transpose(1, 0).cuda().index_select(0, incorrect_i)
+        correct_labels = batch.label_list.transpose(1, 0).cuda().index_select(0, correct_i)
+        misclassified_entropy = probs2entropy(labels2prob(misclassified_labels))
+        correct_entropy = probs2entropy(labels2prob(correct_labels))
+        misclassified_entropy_tot += sum(misclassified_entropy)/len(misclassified_entropy)
+        correct_entropy_tot += sum(correct_entropy)/len(correct_entropy)
+
+        # print(batch.label_list.transpose(1, 0).cuda().index_select(0, incorrect_i))
+        # print(F.softmax(class_scores, dim=1).index_select(0, incorrect_i))
+
+        # vocab = data_iter.dataset.fields['premise'].vocab
+        # sentpairs = ids2words(vocab, s1.index_select(1, incorrect_i), s2.index_select(1, incorrect_i))
+        # for sentpair in sentpairs:
+        #     print(sentpair)
+        # print("----")
+
         if calibration_error:
             maxres = torch.max(F.softmax(class_scores, dim=1), 1)
             maxconf = maxres[0].data.cpu().tolist()
@@ -65,6 +86,9 @@ def eval(nli_model: nn.Module, data_iter, calibration_error=False):
         print("confidence:\n","\n".join(("%.3f" % conf) for conf in confs), sep="")
         print("accuracies:\n", "\n".join(("%.3f" % acc) for acc in accs), sep="")
         print("ECE:", "%.3f" % (ECE * 100))
+
+        print("Avg entropy of correct predictions:", (correct_entropy_tot / batch_n))
+        print("Avg entropy of incorrect predictions:", (misclassified_entropy_tot / batch_n))
 
     avg_acc = correct_total / float(data_n)
     avg_loss = loss_total / batch_n

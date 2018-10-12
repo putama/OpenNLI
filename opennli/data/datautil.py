@@ -1,17 +1,20 @@
-from torchtext import data, datasets
+from torchtext import data
+from opennli.data import nli_dataset as datasets
 import torch
 
 
 def build_mnli_split(arguments, reverse=True):
-    text_field = datasets.nli.ParsedTextField(reverse=reverse)
+    text_field = datasets.ParsedTextField(reverse=reverse)
     label_field = data.LabelField()
     genre_field = data.LabelField()
-    parse_field = datasets.nli.ShiftReduceField()
+    parse_field = datasets.ShiftReduceField()
     pairID_field = data.Field(use_vocab=False, sequential=False, unk_token=None)
+    label_list_field = data.Field()
 
     print("splitting MultiNLI datasets...")
     splits = datasets.MultiNLI.splits(text_field, label_field,
                                       parse_field, genre_field,
+                                      label_list_field=label_list_field,
                                       root=arguments.data_root,
                                       train="multinli_1.0_train.jsonl",
                                       validation="multinli_1.0_dev_matched.jsonl",
@@ -19,6 +22,7 @@ def build_mnli_split(arguments, reverse=True):
     train_split, dev_m_split, dev_um_split = splits
     splits = datasets.MultiNLI.splits(text_field, label_field, parse_field,
                                       genre_field, pairID_field,
+                                      label_list_field=label_list_field,
                                       root=arguments.data_root,
                                       train=None,
                                       validation="multinli_0.9_test_"
@@ -34,6 +38,10 @@ def build_mnli_split(arguments, reverse=True):
     label_field.build_vocab(train_split)
     genre_field.build_vocab(train_split, dev_m_split, dev_um_split,
                             test_m_split, test_um_split)
+
+    # share the vocab of label field with the labels list
+    label_list_field.vocab = label_field.vocab
+
     print("Target labels:", label_field.vocab.itos)
     print("Available genres:", genre_field.vocab.itos)
 
